@@ -5,6 +5,7 @@ import { getConfig } from "./powershell.js";
 import { persistentSession } from "./powershell-session.js";
 import { createHttpsService, getHttpsOptions } from "./https-server.js";
 import { login } from "./login.js";
+import { localPrincipal } from "./auth.js";
 
 async function main() {
   if (process.argv[2] === "login") { await login(process.argv.slice(3)); return; }
@@ -26,7 +27,7 @@ async function main() {
     process.on("SIGINT", stop);
     process.on("SIGTERM", stop);
   } else {
-    const server = createServer({ config, principal: { kind: "local", sid: "local-process", roles: ["reader", "operator"] } });
+    const server = createServer({ config, principal: await localPrincipal(config) });
     await server.connect(new StdioServerTransport());
     process.on("exit", () => persistentSession.shutdown());
     const stop = () => { persistentSession.shutdown(); void server.close().finally(() => process.exit(0)); };

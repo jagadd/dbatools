@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { join, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
-import { windowsValidator } from '../../dist/auth.js';
+import { windowsValidator, localPrincipal } from '../../dist/auth.js';
 import { runPowerShell } from '../../dist/powershell.js';
 import { PersistentSession } from '../../dist/powershell-session.js';
 import { fileCredentialResolver } from '../../dist/credentials.js';
@@ -21,6 +21,9 @@ test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and
   const currentConfig={...config,powershellExe:process.env.PWSH_EXE??'pwsh',usePersistentSession:false};
   const validate=windowsValidator(currentConfig);
   const op=await validate(operator,password);
+  const local=await localPrincipal(currentConfig);
+  assert.match(local.sid,/^S-1-/);
+  assert.notEqual(local.sid,op.sid,'Local STDIO identity is independent of the remote sign-in');
   assert.ok(op.roles.includes('operator'));
   assert.deepEqual((await validate(reader,password)).roles,['reader']);
   await assert.rejects(validate(outsider,password),e=>e.status===403);

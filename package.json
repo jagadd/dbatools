@@ -23,6 +23,7 @@
     "scripts/refresh-help.ps1",
     "scripts/run-command.ps1",
     "scripts/authenticate-windows.ps1",
+    "scripts/local-identity.ps1",
     "scripts/check-credential-acl.ps1",
     "scripts/protect-path.ps1",
     "scripts/acl.ps1",

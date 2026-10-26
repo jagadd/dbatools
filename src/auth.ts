@@ -39,6 +39,20 @@ export class SessionStore {
 }
 
 export type WindowsValidator = (username: string, password: string) => Promise<Principal>;
+export async function localPrincipal(config: ServerConfig): Promise<Principal> {
+  let sid = "local-process";
+  if (process.platform === "win32") {
+    try {
+      const identity = await helperJson<{ sid: string }>(config, "local-identity.ps1", {});
+      if (/^S-1-\d+(?:-\d+)+$/.test(identity.sid)) sid = identity.sid;
+    } catch {
+      // Keep help/discovery available when pwsh is missing; execution will report
+      // the missing runtime. A working Windows runtime always records its SID.
+    }
+  }
+  return { kind: "local", sid, roles: ["reader", "operator"] };
+}
+
 export function windowsValidator(config: ServerConfig): WindowsValidator {
   return async (username, password) => {
     if (process.platform !== "win32") throw new AccessError(503, "Windows-account login requires a Windows MCP host");

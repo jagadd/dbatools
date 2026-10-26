@@ -58,6 +58,7 @@ interface PendingRequest {
 export class PersistentSession {
   private queue: Promise<void> = Promise.resolve();
   private child: ChildProcessWithoutNullStreams | null = null;
+  private bootingChild: ChildProcessWithoutNullStreams | null = null;
   private rl: Interface | null = null;
   private readonly pending = new Map<string, PendingRequest>();
   private starting: Promise<void> | null = null;
@@ -80,6 +81,7 @@ export class PersistentSession {
   private spawnProcess(config: ServerConfig): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const child = spawnHelper(config, "run-command.ps1", ["-Persistent"]) as ChildProcessWithoutNullStreams;
+      this.bootingChild = child;
 
       let settled = false;
       const rl = createInterface({ input: child.stdout });
@@ -116,6 +118,7 @@ export class PersistentSession {
       });
 
       child.on("close", () => {
+        if (this.bootingChild === child) this.bootingChild = null;
         clearTimeout(startupTimer);
         if (!settled) {
           settled = true;
@@ -168,6 +171,7 @@ export class PersistentSession {
       ctx.markSettled();
       if (envelope.exitCode === 0) {
         this.child = ctx.child;
+        if (this.bootingChild === ctx.child) this.bootingChild = null;
         this.rl = ctx.rl;
         ctx.resolveStart();
       } else {
@@ -195,6 +199,10 @@ export class PersistentSession {
   }
 
   private teardown(err: Error): void {
+    if (this.bootingChild) {
+      this.bootingChild.kill("SIGKILL");
+      this.bootingChild = null;
+    }
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(err);
@@ -254,7 +262,7 @@ export class PersistentSession {
 
   /** Kills the underlying process, if any. Safe to call multiple times. */
   shutdown(): void {
-    if (!this.child) return;
+    if (!this.child && !this.bootingChild) return;
     this.teardown(new Error("Persistent PowerShell session shut down."));
   }
 }
