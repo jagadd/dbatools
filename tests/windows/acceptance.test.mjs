@@ -11,6 +11,7 @@ import { helperPath } from '../../dist/child-process.js';
 import { config } from '../fixtures.mjs';
 
 test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and persistent queue', async t=>{
+  try {
   assert.equal(process.platform,'win32','Windows acceptance requires Windows; it must not silently skip');
   const operator=process.env.DBATOOLS_TEST_OPERATOR_USER;
   const reader=process.env.DBATOOLS_TEST_READER_USER;
@@ -82,4 +83,12 @@ test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and
   assert.equal((await second).stdout.trim(),'second');
   await assert.rejects(session.run('Start-Sleep -Seconds 5',persistentConfig),/timed out/);
   assert.equal((await session.run('Write-Output "recovered"',persistentConfig)).stdout.trim(),'recovered');
+  } catch (error) {
+    if (process.env.RUNNER_TEMP) {
+      let detail = error.stack ?? String(error);
+      for (const value of [process.env.DBATOOLS_TEST_LOGIN_PASSWORD, "synthetic'\"Password42"]) if (value) detail = detail.split(value).join('[REDACTED]');
+      await writeFile(join(process.env.RUNNER_TEMP, 'mcp-acceptance-failure.txt'), detail, {mode:0o600});
+    }
+    throw error;
+  }
 });

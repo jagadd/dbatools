@@ -39,3 +39,13 @@ jobs:
           "DBATOOLS_TEST_OUTSIDER_USER=$env:COMPUTERNAME\McpTestOutsider" | Out-File $env:GITHUB_ENV -Append
           "DBATOOLS_TEST_LOGIN_PASSWORD=$password" | Out-File $env:GITHUB_ENV -Append
       - run: npm run test:windows
+      - name: Annotate Windows acceptance failure
+        if: failure()
+        shell: pwsh
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP "mcp-acceptance-failure.txt"
+          if (Test-Path -LiteralPath $path) {
+              $detail = Get-Content -LiteralPath $path -Raw
+              $detail = $detail.Replace("%", "%25").Replace("`r", "%0D").Replace("`n", "%0A")
+              Write-Output "::error title=Windows acceptance failure::$detail"
+          }
