@@ -5,3 +5,7 @@ generated/dbatools-help.json
 .env
 .env.local
 *.log
+*.pem
+*.pfx
+*.clixml
+profiles.json

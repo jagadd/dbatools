@@ -5,6 +5,11 @@
 
 A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server for the [dbatools](https://dbatools.io) PowerShell module.
 
+Supports the existing local **STDIO** transport and authenticated **Streamable
+HTTP over HTTPS** on Windows. See [Windows HTTPS setup, authentication, credential
+profiles, and testing](docs/https.md). HTTPS runs commands under the MCP service
+account; signing in does not impersonate the caller.
+
 Exposes dbatools commands as MCP tools so AI assistants (GitHub Copilot, Claude, etc.) can discover, explain, and execute dbatools commands directly — with all metadata sourced from dbatools' own **comment-based help**.
 
 ---
@@ -143,6 +148,10 @@ Set `DBATOOLS_PERSISTENT_SESSION=false` to disable this and go back to one fresh
 ---
 
 ## SQL Authentication
+
+For HTTPS, use authorized server-side `credentialRefs` as described in
+[credential profiles](docs/https.md#credential-profiles). The inline form below
+is retained for local STDIO compatibility; references are preferred there too.
 
 For SQL-auth-only instances (e.g. Docker), pass credentials via the `SqlCredential` parameter:
 

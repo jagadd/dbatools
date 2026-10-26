@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import type { HelpIndex, HelpManifest, DbatoolsCommandHelp } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HELP_INDEX_PATH = join(__dirname, "../generated/dbatools-help.json");
+const HELP_INDEX_PATH = process.env.DBATOOLS_HELP_INDEX ?? join(__dirname, "../generated/dbatools-help.json");
 
 let cachedManifest: HelpManifest | null = null;
 

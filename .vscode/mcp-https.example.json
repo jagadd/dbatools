@@ -1,0 +1,17 @@
+{
+  "servers": {
+    "dbatools-https": {
+      "type": "http",
+      "url": "https://mcp.example.internal:8443/mcp",
+      "headers": { "Authorization": "Bearer ${input:dbatools-session-token}" }
+    }
+  },
+  "inputs": [
+    {
+      "id": "dbatools-session-token",
+      "type": "promptString",
+      "description": "Session token from the protected login helper file (expires after one hour)",
+      "password": true
+    }
+  ]
+}

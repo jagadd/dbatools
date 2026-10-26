@@ -1,12 +1,12 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.dataplat/dbatools-mcp-server",
-  "description": "MCP server for dbatools — exposes SQL Server management commands as MCP tools",
+  "description": "MCP server for dbatools \u2014 exposes SQL Server management commands as MCP tools",
   "repository": {
     "url": "https://github.com/dataplat/dbatools-mcp-server",
     "source": "github"
   },
-  "version": "0.7.0",
+  "version": "0.8.0",
   "icons": [
     {
       "src": "https://dbatools.io/thor.png",
@@ -17,28 +17,28 @@
     {
       "registryType": "npm",
       "identifier": "dbatools-mcp-server",
-      "version": "0.7.0",
+      "version": "0.8.0",
       "transport": {
         "type": "stdio"
       },
       "environmentVariables": [
         {
           "name": "DBATOOLS_SAFE_MODE",
-          "description": "Set to 'false' to allow write/destructive dbatools operations. Defaults to true (read-only safe mode).",
+          "description": "When true, non-readonly commands require confirm:true. This is separate from HTTPS authentication and operator authorization.",
           "isRequired": false,
           "isSecret": false,
           "format": "string"
         },
         {
           "name": "MAX_OUTPUT_ROWS",
-          "description": "Maximum number of rows returned per command. Defaults to 100. Allowed range: 1–10000.",
+          "description": "Maximum number of rows returned per command. Defaults to 100. Allowed range: 1\u201310000.",
           "isRequired": false,
           "isSecret": false,
           "format": "number"
         },
         {
           "name": "COMMAND_TIMEOUT_SECONDS",
-          "description": "Timeout in seconds for each dbatools command. Defaults to 60. Allowed range: 5–3600.",
+          "description": "Timeout in seconds for each dbatools command. Defaults to 60. Allowed range: 5\u20133600.",
           "isRequired": false,
           "isSecret": false,
           "format": "number"
@@ -49,9 +49,78 @@
           "isRequired": false,
           "isSecret": false,
           "format": "string"
+        },
+        {
+          "name": "DBATOOLS_TRANSPORT",
+          "description": "stdio (default) or https; HTTPS requires Windows-account login.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_HTTPS_HOST",
+          "description": "Bind address for HTTPS; defaults to 127.0.0.1.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_HTTPS_PORT",
+          "description": "HTTPS port; defaults to 8443.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_HTTPS_ALLOWED_HOSTS",
+          "description": "Required comma-separated exact HTTPS hostnames, without ports.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_HTTPS_ALLOWED_ORIGINS",
+          "description": "Optional comma-separated exact browser origins.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_TLS_CERT_FILE",
+          "description": "Path to PEM certificate chain; required for HTTPS.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_TLS_KEY_FILE",
+          "description": "Path to PEM private key; required for HTTPS.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_CREDENTIAL_STORE",
+          "description": "Path to Windows DPAPI profile directory.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_HELP_INDEX",
+          "description": "Optional absolute path to the generated help manifest.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "DBATOOLS_PERSISTENT_SESSION",
+          "description": "Persistent process for STDIO (default true). HTTPS always uses one-shot processes.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
         }
       ]
     }
   ]
 }
-

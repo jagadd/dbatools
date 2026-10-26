@@ -1,8 +1,8 @@
 {
   "name": "dbatools-mcp-server",
   "mcpName": "io.github.dataplat/dbatools-mcp-server",
-  "version": "0.7.0",
-  "description": "MCP server for dbatools — exposes SQL Server management commands as MCP tools",
+  "version": "0.8.0",
+  "description": "MCP server for dbatools \u2014 exposes SQL Server management commands as MCP tools",
   "keywords": [
     "dbatools",
     "mcp",
@@ -19,7 +19,14 @@
   "files": [
     "dist",
     "generated/.gitkeep",
-    "scripts/refresh-help.ps1"
+    "docs/https.md",
+    "scripts/refresh-help.ps1",
+    "scripts/run-command.ps1",
+    "scripts/authenticate-windows.ps1",
+    "scripts/check-credential-acl.ps1",
+    "scripts/protect-path.ps1",
+    "scripts/acl.ps1",
+    "scripts/save-credential.ps1"
   ],
   "bin": {
     "dbatools-mcp-server": "./dist/server.js"
@@ -29,36 +36,20 @@
     "dev": "tsx src/server.ts",
     "start": "node dist/server.js",
     "refresh-help": "pwsh -NonInteractive -File scripts/refresh-help.ps1",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --passWithNoTests"
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "test:windows": "npm run build && node --test tests/windows/*.test.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.24.0"
+    "zod": "^3.24.0",
+    "express": "^5.2.1"
   },
   "devDependencies": {
-    "@types/jest": "^30.0.0",
     "@types/node": "^22.0.0",
-    "jest": "^30.5.2",
-    "ts-jest": "^29.2.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
-  },
-  "jest": {
-    "preset": "ts-jest/presets/default-esm",
-    "extensionsToTreatAsEsm": [
-      ".ts"
-    ],
-    "moduleNameMapper": {
-      "^(\\.{1,2}/.*)\\.js$": "$1"
-    },
-    "transform": {
-      "^.+\\.tsx?$": [
-        "ts-jest",
-        {
-          "useESM": true
-        }
-      ]
-    }
+    "typescript": "^5.7.0",
+    "@types/express": "^5.0.0"
   },
   "engines": {
     "node": ">=20.0.0"

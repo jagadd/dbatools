@@ -55,6 +55,7 @@ export interface PowerShellResult {
 
 /** Runtime configuration resolved from environment variables */
 export interface ServerConfig {
+  transport: "stdio" | "https";
   powershellExe: string;
   /** When true, non-readonly commands require confirm:true */
   safeMode: boolean;
@@ -65,7 +66,21 @@ export interface ServerConfig {
   /**
    * When true, invoke_dbatools_command reuses a single long-lived PowerShell
    * process (with dbatools pre-imported) instead of spawning a fresh process
-   * per call. Falls back automatically to a one-shot process on startup failure.
+   * per call. Startup failures are surfaced without retrying commands.
    */
   usePersistentSession: boolean;
 }
+
+export interface Principal {
+  kind: "local" | "windows";
+  sid: string;
+  roles: ("reader" | "operator")[];
+}
+
+export interface ExecutionData {
+  parameters?: Record<string, unknown>;
+  credentialParameters?: string[];
+  credentialFiles?: Record<string, string>;
+}
+
+export type Executor = (script: string, config: ServerConfig, data?: ExecutionData) => Promise<PowerShellResult>;

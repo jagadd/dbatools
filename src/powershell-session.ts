@@ -1,9 +1,10 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
+import type { ChildProcessWithoutNullStreams } from "child_process";
+import { spawnHelper } from "./child-process.js";
 import { createInterface, type Interface } from "readline";
 import { randomUUID } from "crypto";
 
 import { runPowerShell } from "./powershell.js";
-import type { PowerShellResult, ServerConfig } from "./types.js";
+import type { ExecutionData, PowerShellResult, ServerConfig } from "./types.js";
 
 /** Maximum bytes (post-base64-decode) accepted for a single response envelope. */
 const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
@@ -27,7 +28,7 @@ interface PendingRequest {
 
 /**
  * The PowerShell "driver" loop that runs for the lifetime of the persistent
- * session. It imports dbatools once, then reads one base64(JSON) request per
+ * session. It imports dbatools once, then reads one JSON request per
  * line from stdin and writes exactly one base64(JSON) response per line to
  * stdout, so request/response framing survives arbitrary script output
  * (including embedded newlines) without ambiguity.
@@ -44,78 +45,6 @@ interface PendingRequest {
  * own child scope — variables set inside one call (e.g. `$params`, `$result`)
  * do not leak into the session scope or into subsequent calls.
  */
-const DRIVER_SCRIPT = [
-  "Set-StrictMode -Off",
-  "$ErrorActionPreference = 'Stop'",
-  "$WarningPreference = 'SilentlyContinue'",
-  "$VerbosePreference = 'SilentlyContinue'",
-  "$InformationPreference = 'SilentlyContinue'",
-  "$DebugPreference = 'SilentlyContinue'",
-  "$ProgressPreference = 'SilentlyContinue'",
-  "$script:ready = $false",
-  "try {",
-  "    Import-Module dbatools -ErrorAction Stop",
-  "    $script:ready = $true",
-  "    $readyResp = @{ id = '__ready__'; stdout = 'ok'; stderr = ''; exitCode = 0 } | ConvertTo-Json -Compress",
-  "} catch {",
-  "    $readyResp = @{ id = '__ready__'; stdout = ''; stderr = $_.Exception.Message; exitCode = 1 } | ConvertTo-Json -Compress",
-  "}",
-  "$readyBytes = [System.Text.Encoding]::UTF8.GetBytes($readyResp)",
-  "[Console]::Out.WriteLine([Convert]::ToBase64String($readyBytes))",
-  "[Console]::Out.Flush()",
-  "",
-  "if (-not $script:ready) { exit 1 }",
-  "",
-  "while ($true) {",
-  "    $line = [Console]::In.ReadLine()",
-  "    if ($null -eq $line) { break }",
-  "    if ([string]::IsNullOrWhiteSpace($line)) { continue }",
-  "",
-  "    $id = $null",
-  "    try {",
-  "        $reqBytes = [Convert]::FromBase64String($line)",
-  "        $reqJson = [System.Text.Encoding]::UTF8.GetString($reqBytes)",
-  "        $req = $reqJson | ConvertFrom-Json",
-  "        $id = [string]$req.id",
-  "        $scriptText = [string]$req.script",
-  "",
-  "        $stdout = ''",
-  "        $stderr = ''",
-  "        $exitCode = 0",
-  "        try {",
-  "            $sb = [scriptblock]::Create($scriptText)",
-  "            $outputItems = & $sb 2>&1 3>&1 4>&1 5>&1 6>&1",
-  "            $normal = [System.Collections.Generic.List[object]]::new()",
-  "            foreach ($item in $outputItems) {",
-  "                if ($item -is [System.Management.Automation.ErrorRecord] -or",
-  "                    $item -is [System.Management.Automation.WarningRecord] -or",
-  "                    $item -is [System.Management.Automation.VerboseRecord] -or",
-  "                    $item -is [System.Management.Automation.DebugRecord] -or",
-  "                    $item -is [System.Management.Automation.InformationRecord]) {",
-  "                    $stderr += ($item.ToString() + \"`n\")",
-  "                } else {",
-  "                    $normal.Add($item)",
-  "                }",
-  "            }",
-  "            if ($normal.Count -gt 0) {",
-  "                $stdout = ($normal | Out-String)",
-  "            }",
-  "        } catch {",
-  "            $stderr = $_.Exception.Message",
-  "            $exitCode = 1",
-  "        }",
-  "",
-  "        $resp = @{ id = $id; stdout = $stdout; stderr = $stderr; exitCode = $exitCode } | ConvertTo-Json -Compress",
-  "    } catch {",
-  "        $fallbackId = if ($id) { $id } else { '__unknown__' }",
-  "        $resp = @{ id = $fallbackId; stdout = ''; stderr = \"Protocol error: $($_.Exception.Message)\"; exitCode = 1 } | ConvertTo-Json -Compress",
-  "    }",
-  "",
-  "    $respBytes = [System.Text.Encoding]::UTF8.GetBytes($resp)",
-  "    [Console]::Out.WriteLine([Convert]::ToBase64String($respBytes))",
-  "    [Console]::Out.Flush()",
-  "}",
-].join("\n");
 
 /**
  * Manages one long-lived `pwsh` process with dbatools pre-imported, so that
@@ -126,7 +55,8 @@ const DRIVER_SCRIPT = [
  * There is no automatic retry of the call that triggered the failure — the
  * error is surfaced to the caller for that one invocation.
  */
-class PersistentSession {
+export class PersistentSession {
+  private queue: Promise<void> = Promise.resolve();
   private child: ChildProcessWithoutNullStreams | null = null;
   private rl: Interface | null = null;
   private readonly pending = new Map<string, PendingRequest>();
@@ -149,20 +79,7 @@ class PersistentSession {
 
   private spawnProcess(config: ServerConfig): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-      const encodedCommand = Buffer.from(DRIVER_SCRIPT, "utf16le").toString("base64");
-      const child = spawn(
-        config.powershellExe,
-        [
-          "-NonInteractive",
-          "-NoProfile",
-          "-NoLogo",
-          "-ExecutionPolicy",
-          "Bypass",
-          "-EncodedCommand",
-          encodedCommand,
-        ],
-        { shell: false }
-      ) as ChildProcessWithoutNullStreams;
+      const child = spawnHelper(config, "run-command.ps1", ["-Persistent"]) as ChildProcessWithoutNullStreams;
 
       let settled = false;
       const rl = createInterface({ input: child.stdout });
@@ -195,7 +112,7 @@ class PersistentSession {
           reject(new Error(`Failed to launch '${config.powershellExe}': ${err.message}`));
           return;
         }
-        this.teardown(new Error(`Persistent PowerShell session error: ${err.message}`));
+        if (this.child === child) this.teardown(new Error("Persistent PowerShell session error"));
       });
 
       child.on("close", () => {
@@ -205,7 +122,7 @@ class PersistentSession {
           reject(new Error("Persistent PowerShell session exited before becoming ready."));
           return;
         }
-        this.teardown(new Error("Persistent PowerShell session exited unexpectedly."));
+        if (this.child === child) this.teardown(new Error("Persistent PowerShell session exited unexpectedly."));
       });
     });
   }
@@ -223,6 +140,7 @@ class PersistentSession {
     }
   ): void {
     if (!line.trim()) return;
+    if (Buffer.byteLength(line) > 16 * 1024 * 1024) { this.teardown(new Error("PowerShell response exceeded its limit")); return; }
 
     let decoded: Buffer;
     try {
@@ -300,7 +218,13 @@ class PersistentSession {
     this.rl = null;
   }
 
-  async run(script: string, config: ServerConfig): Promise<PowerShellResult> {
+  run(script: string, config: ServerConfig, data: ExecutionData = {}): Promise<PowerShellResult> {
+    const result = this.queue.then(() => this.runNext(script, config, data));
+    this.queue = result.then(() => {}, () => {});
+    return result;
+  }
+
+  private async runNext(script: string, config: ServerConfig, data: ExecutionData): Promise<PowerShellResult> {
     await this.ensureStarted(config);
     const child = this.child;
     if (!child) {
@@ -308,8 +232,7 @@ class PersistentSession {
     }
 
     const id = randomUUID();
-    const payload = JSON.stringify({ id, script });
-    const encoded = Buffer.from(payload, "utf8").toString("base64");
+    const payload = JSON.stringify({ ...data, id, script, parameters: data.parameters ?? {}, credentialFiles: data.credentialFiles ?? {} });
 
     return new Promise<PowerShellResult>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -319,7 +242,7 @@ class PersistentSession {
       }, config.commandTimeout * 1000);
 
       this.pending.set(id, { resolve, reject, timer });
-      child.stdin.write(encoded + "\n", (err) => {
+      child.stdin.write(payload + "\n", (err) => {
         if (err && this.pending.has(id)) {
           clearTimeout(timer);
           this.pending.delete(id);
@@ -344,10 +267,11 @@ export const persistentSession = new PersistentSession();
  */
 export async function runPowerShellPersistent(
   script: string,
-  config: ServerConfig
+  config: ServerConfig,
+  data: ExecutionData = {}
 ): Promise<PowerShellResult> {
   if (!config.usePersistentSession) {
-    return runPowerShell(script, config);
+    return runPowerShell(script, config, data);
   }
-  return persistentSession.run(script, config);
+  return persistentSession.run(script, config, data);
 }

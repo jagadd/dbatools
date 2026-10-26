@@ -92,11 +92,11 @@ function isSqlCredentialDescriptor(v: unknown): v is SqlCredentialDescriptor {
  * requested command with the supplied parameters, and emits JSON via
  * ConvertTo-Json so the MCP server gets structured output.
  *
- * String values are single-quoted and internal single-quotes are escaped.
- * Switch parameters are passed as bare flags when value is true.
+ * Parameter values are supplied separately through the fixed driver on stdin.
+ * The driver preserves typed values, including false switch values.
  *
  * Special parameter: SqlCredential — accepts { username, password } and is
- * converted into a PSCredential object so SQL authentication works.
+ * converted by the driver into a PSCredential without credential script literals.
  */
 export function buildPowerShellScript(
   commandName: string,
@@ -119,56 +119,20 @@ export function buildPowerShellScript(
     }
   }
 
-  const preambleLines: string[] = [];
-  const splatEntries: string[] = [];
-
+  // Values travel in the driver's stdin envelope, never inside script literals.
   for (const [key, value] of Object.entries(args)) {
-    // Validate parameter key (letters, digits only)
-    if (!PROPERTY_NAME_REGEX.test(key)) {
-      throw new Error(`Invalid parameter name: ${key}`);
-    }
-    if (value === null || value === undefined) continue;
-
-    // Special case: SqlCredential object → build a PSCredential in the script
-    if (key === "SqlCredential" && isSqlCredentialDescriptor(value)) {
-      const escapedUser = value.username.replace(/'/g, "''");
-      const escapedPass = value.password.replace(/'/g, "''");
-      preambleLines.push(
-        `$__securePass = ConvertTo-SecureString '${escapedPass}' -AsPlainText -Force`,
-        `$__cred = New-Object System.Management.Automation.PSCredential('${escapedUser}', $__securePass)`
-      );
-      splatEntries.push(`    SqlCredential = $__cred`);
-      continue;
-    }
-
-    if (typeof value === "boolean") {
-      if (value) splatEntries.push(`    ${key} = $true`);
-    } else if (typeof value === "number") {
-      if (!Number.isFinite(value)) throw new Error(`Non-finite number for -${key}`);
-      splatEntries.push(`    ${key} = ${value}`);
-    } else {
-      // Sanitize string: escape embedded single-quotes
-      const escaped = String(value).replace(/'/g, "''");
-      splatEntries.push(`    ${key} = '${escaped}'`);
-    }
+    if (!PROPERTY_NAME_REGEX.test(key)) throw new Error(`Invalid parameter name: ${key}`);
+    if (typeof value === "number" && !Number.isFinite(value)) throw new Error(`Non-finite number for -${key}`);
   }
-
-  const splatBlock =
-    splatEntries.length > 0
-      ? [`$params = @{`, ...splatEntries, `}`].join("\n")
-      : `$params = @{}`;
-
   return [
-    `Set-StrictMode -Off`,
-    `$ErrorActionPreference = 'Stop'`,
-    ...(opts?.skipImport ? [] : [`Import-Module dbatools -ErrorAction Stop`]),
-    ...preambleLines,
-    splatBlock,
+    "Set-StrictMode -Off",
+    "$ErrorActionPreference = 'Stop'",
+    ...(opts?.skipImport ? [] : ["Import-Module dbatools -ErrorAction Stop"]),
+    "$params = $request.parameters",
     ...(selectProperties?.length
       ? [`$result = ${commandName} @params | Select-Object -First ${maxRows} -Property ${selectProperties.join(', ')}`]
       : [`$result = ${commandName} @params | Select-Object -First ${maxRows}`]),
-    `if ($null -eq $result) { Write-Output '[]'; exit 0 }`,
-    `$result | ConvertTo-Json -Depth 5 -Compress`,
+    "if ($null -eq $result) { Write-Output '[]' } else { $result | ConvertTo-Json -Depth 5 -Compress }",
   ].join("\n");
 }
 

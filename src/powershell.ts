@@ -1,8 +1,8 @@
-import { spawn } from "child_process";
-import type { PowerShellResult, ServerConfig } from "./types.js";
+import { spawnHelper } from "./child-process.js";
+import type { ExecutionData, PowerShellResult, ServerConfig } from "./types.js";
 
-/** Maximum total stdout+stderr bytes buffered per PowerShell invocation (10 MB). */
-const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+/** Maximum framed stdout+stderr bytes; the driver limits decoded output to 10 MB. */
+const MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 
 /**
  * Parse an integer env var, falling back to `defaultVal` when the value is
@@ -26,7 +26,10 @@ function parseIntEnv(
  * All values can be overridden without code changes.
  */
 export function getConfig(): ServerConfig {
+  const transport = process.env["DBATOOLS_TRANSPORT"] ?? "stdio";
+  if (transport !== "stdio" && transport !== "https") throw new Error("DBATOOLS_TRANSPORT must be stdio or https");
   return {
+    transport,
     powershellExe: process.env["PWSH_EXE"] ?? "pwsh",
     safeMode: process.env["DBATOOLS_SAFE_MODE"] !== "false",
     maxOutputRows: parseIntEnv("MAX_OUTPUT_ROWS", 100, 1, 10_000),
@@ -42,30 +45,15 @@ export function getConfig(): ServerConfig {
  */
 export function runPowerShell(
   script: string,
-  config: ServerConfig
+  config: ServerConfig,
+  data: ExecutionData = {}
 ): Promise<PowerShellResult> {
   return new Promise((resolve, reject) => {
-    // Encode the script as Base64 UTF-16LE and use -EncodedCommand so that
-    // no part of the script (including any user-supplied parameter values
-    // embedded in it) is ever parsed as a command-line argument by PowerShell.
-    // This eliminates the command-injection risk present with -Command.
-    const encodedCommand = Buffer.from(script, "utf16le").toString("base64");
-    const pwsh = spawn(
-      config.powershellExe,
-      [
-        "-NonInteractive",
-        "-NoProfile",
-        "-NoLogo",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-EncodedCommand",
-        encodedCommand,
-      ],
-      { shell: false }
-    );
+    // The executable arguments contain only a fixed driver path. All request
+    // data, including legacy inline credentials, is delivered on stdin.
+    const pwsh = spawnHelper(config, "run-command.ps1");
 
     let stdout = "";
-    let stderr = "";
     let totalBytes = 0;
     let settled = false;
 
@@ -97,14 +85,23 @@ export function runPowerShell(
         fail(new Error(`PowerShell output exceeded the ${MAX_BUFFER_BYTES / 1024 / 1024} MB safety limit`));
         return;
       }
-      stderr += chunk.toString();
+      // Driver errors can contain sensitive data; do not return raw host stderr.
     });
+
+    pwsh.stdin.on("error", () => { clearTimeout(timer); fail(new Error("PowerShell driver input failed")); });
+    pwsh.stdin.end(JSON.stringify({ ...data, id: "one-shot", script, parameters: data.parameters ?? {}, credentialFiles: data.credentialFiles ?? {} }) + "\n");
 
     pwsh.on("close", (code) => {
       clearTimeout(timer);
       if (settled) return;
       settled = true;
-      resolve({ stdout, stderr, exitCode: code ?? 1 });
+      if (code !== 0) return resolve({ stdout: "", stderr: "PowerShell driver exited unexpectedly", exitCode: code ?? 1 });
+      try {
+        const lines = stdout.trim().split(/\r?\n/);
+        const result = JSON.parse(Buffer.from(lines.at(-1) ?? "", "base64").toString("utf8"));
+        if (typeof result.stdout !== "string" || typeof result.stderr !== "string" || !Number.isInteger(result.exitCode)) throw new Error();
+        resolve({ stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode });
+      } catch { reject(new Error("Invalid PowerShell driver response")); }
     });
 
     pwsh.on("error", (err) => {
@@ -120,16 +117,16 @@ export function runPowerShell(
  */
 export async function checkDbatools(
   config: ServerConfig
-): Promise<{ ok: boolean; version?: string; error?: string }> {
+): Promise<{ ok: boolean; version?: string; identity?: string; error?: string }> {
   try {
     const result = await runPowerShell(
       `$m = Get-Module -ListAvailable -Name dbatools | ` +
         `Sort-Object Version -Descending | Select-Object -First 1; ` +
-        `if ($m) { Write-Output $m.Version.ToString() } else { exit 1 }`,
+        `if ($m) { @{ version = $m.Version.ToString(); identity = [Environment]::UserName } | ConvertTo-Json -Compress } else { throw "dbatools module not found" }`,
       config
     );
     if (result.exitCode === 0 && result.stdout.trim()) {
-      return { ok: true, version: result.stdout.trim() };
+      return { ok: true, ...JSON.parse(result.stdout.trim()) };
     }
     return {
       ok: false,
@@ -155,20 +152,21 @@ export interface VersionMismatchResult {
  */
 export async function checkVersionMismatch(
   config: ServerConfig,
-  indexedVersion: string
+  indexedVersion: string,
+  check: typeof checkDbatools = checkDbatools
 ): Promise<VersionMismatchResult> {
-  const check = await checkDbatools(config);
+  const checked = await check(config);
 
-  if (!check.ok || !check.version) {
+  if (!checked.ok || !checked.version) {
     return {
       installedVersion: "unknown",
       indexedVersion,
       isStale: false,
-      message: check.error ?? "Could not determine installed dbatools version.",
+      message: checked.error ?? "Could not determine installed dbatools version.",
     };
   }
 
-  const installed = check.version.trim();
+  const installed = checked.version.trim();
   const isStale = installed !== indexedVersion;
 
   const message = isStale

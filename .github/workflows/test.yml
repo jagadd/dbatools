@@ -1,0 +1,41 @@
+name: MCP transport and Windows authentication tests
+on:
+  push:
+    branches: [development]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - name: Prepare disposable local Windows test accounts
+        shell: pwsh
+        run: |
+          $password = [Guid]::NewGuid().ToString() + "aA1!"
+          Write-Output "::add-mask::$password"
+          $secure = ConvertTo-SecureString -String $password -AsPlainText -Force
+          foreach ($group in "McpReaders", "McpOperators") {
+              if (-not (Get-LocalGroup -Name $group -ErrorAction SilentlyContinue)) { $null = New-LocalGroup -Name $group }
+          }
+          foreach ($name in "McpTestOperator", "McpTestReader", "McpTestOutsider") {
+              $null = New-LocalUser -Name $name -Password $secure
+              $users = (Get-LocalGroup -SID "S-1-5-32-545").Name
+              Add-LocalGroupMember -Group $users -Member $name
+          }
+          Add-LocalGroupMember -Group McpOperators -Member McpTestOperator
+          Add-LocalGroupMember -Group McpReaders -Member McpTestReader
+          "DBATOOLS_TEST_OPERATOR_USER=$env:COMPUTERNAME\McpTestOperator" | Out-File $env:GITHUB_ENV -Append
+          "DBATOOLS_TEST_READER_USER=$env:COMPUTERNAME\McpTestReader" | Out-File $env:GITHUB_ENV -Append
+          "DBATOOLS_TEST_OUTSIDER_USER=$env:COMPUTERNAME\McpTestOutsider" | Out-File $env:GITHUB_ENV -Append
+          "DBATOOLS_TEST_LOGIN_PASSWORD=$password" | Out-File $env:GITHUB_ENV -Append
+      - run: npm run test:windows
