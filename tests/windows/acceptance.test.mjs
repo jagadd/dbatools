@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, realpath } from 'node:fs/promises';
 import { join, delimiter } from 'node:path';
 import { tmpdir } from 'node:os';
 import { windowsValidator } from '../../dist/auth.js';
@@ -60,7 +60,7 @@ test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and
   assert.equal(setup.exitCode,0,setup.stderr);
   process.env.DBATOOLS_CREDENTIAL_STORE=directory;
   const resolver=fileCredentialResolver(currentConfig);
-  assert.deepEqual(await resolver({SqlCredential:'lab'},op),{SqlCredential:credentialPath});
+  assert.deepEqual(await resolver({SqlCredential:'lab'},op),{SqlCredential:await realpath(credentialPath)});
   await assert.rejects(resolver({SqlCredential:'lab'},{...op,sid:'S-1-5-21-1-2-3-9999'}),e=>e.status===403);
   await assert.rejects(resolver({SqlCredential:'missing'},op),/not found/);
   const stored=await runPowerShell('$request.parameters.SqlCredential.GetNetworkCredential().Password',currentConfig,{credentialFiles:{SqlCredential:credentialPath}});
