@@ -1,0 +1,66 @@
+{
+  "name": "dbatools-mcp-server",
+  "mcpName": "io.github.dataplat/dbatools-mcp-server",
+  "version": "0.7.0",
+  "description": "MCP server for dbatools — exposes SQL Server management commands as MCP tools",
+  "keywords": [
+    "dbatools",
+    "mcp",
+    "sql server",
+    "powershell",
+    "database"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dataplat/dbatools-mcp-server.git"
+  },
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "generated/.gitkeep",
+    "scripts/refresh-help.ps1"
+  ],
+  "bin": {
+    "dbatools-mcp-server": "./dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/server.ts",
+    "start": "node dist/server.js",
+    "refresh-help": "pwsh -NonInteractive -File scripts/refresh-help.ps1",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --passWithNoTests"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.0.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "jest": {
+    "preset": "ts-jest/presets/default-esm",
+    "extensionsToTreatAsEsm": [
+      ".ts"
+    ],
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "transform": {
+      "^.+\\.tsx?$": [
+        "ts-jest",
+        {
+          "useESM": true
+        }
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

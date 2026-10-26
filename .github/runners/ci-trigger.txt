@@ -1,2 +1,0 @@
-ci-azure validation trigger
-run: 7 (post-cutover: prove Azure-controller registration end to end)
