@@ -7,6 +7,8 @@ $InformationPreference = "SilentlyContinue"
 $DebugPreference = "SilentlyContinue"
 $ProgressPreference = "SilentlyContinue"
 
+. (Join-Path $PSScriptRoot 'serialize-output.ps1')
+
 function Send-Response {
     param([hashtable]$Response)
     $json = ConvertTo-Json -InputObject $Response -Depth 8 -Compress

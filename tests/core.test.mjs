@@ -101,10 +101,11 @@ test('server factory preserves tools/resources and supplies credentials out of b
     assert.deepEqual((await client.listTools()).tools.map(t=>t.name),['list_dbatools_commands','get_dbatools_command_help','invoke_dbatools_command','check_dbatools_environment']);
     assert.equal((await client.listResources()).resources[0].uri,`dbatools://command/${help.name}`);
     assert.ok((await client.readResource({uri:`dbatools://command/${help.name}`})).contents[0].text.includes(help.name));
-    const result=await client.callTool({name:'invoke_dbatools_command',arguments:{commandName:help.name,credentialRefs:{SqlCredential:'lab'}}});
+    const result=await client.callTool({name:'invoke_dbatools_command',arguments:{commandName:help.name,credentialRefs:{SqlCredential:'lab'},selectProperties:['total_memory_kb']}});
     assert.ok(!result.isError);
     assert.equal(received[2].credentialFiles.SqlCredential,'C:\\private\\lab.clixml');
     assert.ok(!received[0].includes('lab.clixml'));
+    assert.ok(received[0].includes('-Property total_memory_kb'));
     assert.equal(audits[0].sid,principal.sid);
     assert.equal(audits[0].outcome,'succeeded');
     assert.ok(!JSON.stringify(audits).includes('parameters'));

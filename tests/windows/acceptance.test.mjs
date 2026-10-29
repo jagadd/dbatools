@@ -9,6 +9,7 @@ import { PersistentSession } from '../../dist/powershell-session.js';
 import { fileCredentialResolver } from '../../dist/credentials.js';
 import { helperPath } from '../../dist/child-process.js';
 import { config } from '../fixtures.mjs';
+import { buildPowerShellScript } from '../../dist/tool-registry.js';
 
 test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and persistent queue', async t=>{
   try {
@@ -84,6 +85,15 @@ test('Windows native acceptance: logon, service identity, DPAPI, ACLs, stdin and
   const second=session.run('Write-Output "second"',persistentConfig);
   assert.equal((await first).stdout.trim(),'first');
   assert.equal((await second).stdout.trim(),'second');
+  const rowScript=`function Get-TestRows {
+    $table=[Data.DataTable]::new(); [void]$table.Columns.Add('value_kb',[long]);
+    [void]$table.Rows.Add(42); $table.Rows
+  }\n`+buildPowerShellScript('Get-TestRows',{},100,undefined,{skipImport:true});
+  for(let i=0;i<2;i++) {
+    const rows=await session.run(rowScript,persistentConfig);
+    assert.equal(rows.exitCode,0,rows.stderr);
+    assert.deepEqual(JSON.parse(rows.stdout),{value_kb:42});
+  }
   await assert.rejects(session.run('Start-Sleep -Seconds 5',persistentConfig),/timed out/);
   assert.equal((await session.run('Write-Output "recovered"',persistentConfig)).stdout.trim(),'recovered');
   } catch (error) {

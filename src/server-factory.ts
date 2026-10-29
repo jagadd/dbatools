@@ -12,6 +12,7 @@ import {
   annotationsForRisk,
   buildPowerShellScript,
   PROPERTY_NAME_REGEX,
+  OUTPUT_PROPERTY_NAME_REGEX,
 } from "./tool-registry.js";
 
 export interface ServerDependencies {
@@ -271,14 +272,14 @@ export function createServer(dependencies: ServerDependencies): McpServer {
             "Set to true to allow execution of change/destructive commands (required when safeMode is on)"
           ),
         selectProperties: z
-          .array(z.string().trim().regex(PROPERTY_NAME_REGEX, 'Property names must be alphanumeric and start with a letter').max(100))
+          .array(z.string().trim().regex(OUTPUT_PROPERTY_NAME_REGEX, 'Property names must start with a letter and contain only letters, digits or underscores').max(100))
           .min(1, 'selectProperties must contain at least one property name')
           .max(50)
           .optional()
           .describe(
             "List of property names to select from the output (e.g. ['Name', 'Status', 'SizeMB']). " +
             "Use this to reduce output size for commands that return complex objects like SMO database or login objects. " +
-            "When omitted, all properties are returned."
+            "When omitted, table rows return column values and other objects return bounded data with safe scalar properties; internal object graphs are omitted."
           ),
       },
     },

@@ -11,8 +11,9 @@ const DESTRUCTIVE_VERBS = new Set([
   "Clear", "Unregister", "Restore", "Stop", "Invoke", "Rename", "Restart", "Write",
 ]);
 
-/** Shared regex for validating PowerShell property names (single source of truth). */
+/** Parameter names and output columns are validated before becoming script syntax. */
 export const PROPERTY_NAME_REGEX = /^[A-Za-z][A-Za-z0-9]*$/;
+export const OUTPUT_PROPERTY_NAME_REGEX = /^[A-Za-z][A-Za-z0-9_]*$/;
 
 /**
  * Classify a dbatools command into a risk tier based on its verb.
@@ -110,10 +111,10 @@ export function buildPowerShellScript(
     throw new Error(`Invalid command name: ${commandName}`);
   }
 
-  // Validate selectProperties names (letters, digits only)
+  // SQL column names may contain underscores; script syntax remains forbidden.
   if (selectProperties) {
     for (const prop of selectProperties) {
-      if (!PROPERTY_NAME_REGEX.test(prop)) {
+      if (!OUTPUT_PROPERTY_NAME_REGEX.test(prop)) {
         throw new Error(`Invalid property name: ${prop}`);
       }
     }
@@ -132,7 +133,7 @@ export function buildPowerShellScript(
     ...(selectProperties?.length
       ? [`$result = ${commandName} @params | Select-Object -First ${maxRows} -Property ${selectProperties.join(', ')}`]
       : [`$result = ${commandName} @params | Select-Object -First ${maxRows}`]),
-    "if ($null -eq $result) { Write-Output '[]' } else { $result | ConvertTo-Json -Depth 5 -Compress }",
+    "ConvertTo-McpJson -InputObject $result",
   ].join("\n");
 }
 

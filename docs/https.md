@@ -170,6 +170,35 @@ is not a general-purpose data-loss-prevention filter. Audit JSON on stderr
 contains caller SID, command name, request ID, duration, and outcome, not raw
 parameters or credential values. STDIO stdout remains reserved for MCP messages.
 
+## Command result serialization
+
+Both transports normalize command results before JSON serialization. DataRow
+results contain their column names and cell values (DBNull becomes null), rather
+than DataRow/Table/.NET metadata. DataTable and DataSet values use the same bounded
+conversion. Scalar CLR properties are included without expanding complex getters;
+ScriptProperty getters are not evaluated. Enums become names and dates use ISO
+8601 strings. Nested complex CLR values are represented by an explicit omission
+marker. This avoids recursively traversing SQL management objects and their parents.
+
+`selectProperties` remains available to choose output fields before normalization.
+Names may start with a letter and contain letters, digits, or underscores, so SQL
+columns such as `total_physical_memory_kb` are accepted. Expressions and wildcards
+are rejected. Select fields belonging to the command's actual return type; missing
+fields can still appear as null and are not evidence of command failure.
+
+Normalization limits nesting to three levels, nested collections to 100 items,
+objects to 128 properties, and individual strings to 8,192 characters. Truncated
+strings/properties and omitted values are marked explicitly. Aggregate limits are
+5,000 nodes, 131,072 text characters (including keys), and 1 MB of normalized JSON;
+excessive columns, collections or aggregate output return actionable errors asking
+for fewer properties or rows. Existing command row/time limits still apply. These
+limits bound conversion of the result, not the memory a dbatools command itself
+uses before returning it.
+
+A serialization error occurs **after command execution**. For a command that
+changes state, verify its actual outcome before considering another invocation;
+do not automatically repeat it just because output conversion failed.
+
 ## Verification
 
 `npm test` runs native Node tests for real HTTPS/TLS and STDIO protocol behavior,
