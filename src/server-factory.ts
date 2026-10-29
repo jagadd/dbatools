@@ -257,7 +257,7 @@ export function createServer(dependencies: ServerDependencies): McpServer {
           .max(100)
           .describe("Exact dbatools command name to execute, e.g. Get-DbaDatabase"),
         parameters: z
-          .record(z.unknown())
+          .record(z.string(), z.unknown())
           .default({})
           .describe(config.transport === "https"
             ? "Non-sensitive command parameters. Use credentialRefs for every credential parameter; do not put passwords in tool arguments."
