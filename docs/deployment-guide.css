@@ -1,0 +1,32 @@
+@page {
+  size: A4;
+  margin: 18mm 17mm 20mm;
+  @bottom-left { content: "dbatools MCP | HTTPS deployment guide"; font: 8pt sans-serif; color: #607080; }
+  @bottom-right { content: counter(page); font: 8pt sans-serif; color: #607080; }
+}
+html { font-family: "DejaVu Sans", Arial, sans-serif; color: #182b3b; font-size: 10pt; line-height: 1.5; }
+body { margin: 0; max-width: none; }
+header { padding: 25mm 0 12mm; border-bottom: 3px solid #17628b; }
+header h1.title { font-size: 30pt; line-height: 1.16; color: #123e5e; break-before: auto; }
+header .subtitle { font-size: 16pt; color: #315d78; }
+header .date { font-size: 10pt; color: #607080; }
+nav#TOC { break-before: page; }
+nav#TOC a { color: #244a65; text-decoration: none; }
+nav#TOC li { margin: 3pt 0; }
+h1 { break-before: page; font-size: 21pt; line-height: 1.2; color: #123e5e; border-bottom: 1px solid #b5cedf; padding-bottom: 7pt; }
+h2 { font-size: 13pt; color: #17628b; margin-top: 18pt; }
+h3 { font-size: 11pt; color: #17628b; }
+h1, h2, h3 { break-after: avoid; }
+p { orphans: 3; widows: 3; }
+a { color: #125d8b; overflow-wrap: anywhere; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.4pt; overflow-wrap: anywhere; }
+pre { background: #f0f4f7; border-left: 3px solid #80a9c1; padding: 9pt; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; line-height: 1.38; break-inside: auto; }
+pre code { font-size: 8pt; }
+table { border-collapse: collapse; width: 100%; margin: 12pt 0; font-size: 8.5pt; table-layout: fixed; }
+th { background: #e6eff5; text-align: left; color: #123e5e; }
+th, td { border: 1px solid #cbd6df; padding: 6pt; vertical-align: top; overflow-wrap: anywhere; }
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+table code { font-size: 7.6pt; }
+blockquote { border-left: 3px solid #80a9c1; margin-left: 0; padding-left: 12pt; }
+li { margin-bottom: 4pt; }

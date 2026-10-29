@@ -10,6 +10,12 @@ HTTP over HTTPS** on Windows. See [Windows HTTPS setup, authentication, credenti
 profiles, and testing](docs/https.md). HTTPS runs commands under the MCP service
 account; signing in does not impersonate the caller.
 
+The [deployment and validation guide (PDF)](docs/dbatools-mcp-https-deployment-guide.pdf)
+records the Windows/Linux POC, certificate and login setup, remote SQL credentials,
+Inspector tests, serialization fixes, and Claude Agent SDK handoff.
+Its [editable Markdown source](docs/dbatools-mcp-https-deployment-guide.md) includes
+the verified results and remaining deployment work.
+
 Exposes dbatools commands as MCP tools so AI assistants (GitHub Copilot, Claude, etc.) can discover, explain, and execute dbatools commands directly — with all metadata sourced from dbatools' own **comment-based help**.
 
 ---

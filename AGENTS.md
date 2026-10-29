@@ -23,3 +23,5 @@
 - Run `npm test` and `npm run typecheck`. With PowerShell 7 installed, `tests/serialization.test.mjs` exercises the real driver using synthetic objects, without requiring SQL. Set PWSH_EXE if needed.
 - Run `npm run test:windows` only with the documented disposable Windows accounts. The Windows CI workflow also verifies persistent serialization, authentication, DPAPI and ACLs.
 - Live POC observations: unrestricted instance-property serialization exhausted memory; an Invoke-DbaQuery DataRow expanded to roughly 568 KB for two values. These are wrapper serialization regressions to prevent.
+- `docs/dbatools-mcp-https-deployment-guide.md` records the verified Windows/Linux POC and operational handoff; distinguish confirmed tests from pending Agent SDK application work.
+- Keep its PDF synchronized when updating the guide, using `scripts/build-deployment-guide.py` on a documentation build machine. Never include real passwords, tokens, or private keys in examples.
