@@ -86,3 +86,26 @@ test('one failed concurrent HTTPS execution does not fail another caller',async 
   assert.ok(results[0].body.result.isError);
   assert.ok(!results[1].body.result.isError);
 });
+
+test('HTTPS login issues 24-hour sessions from environment configuration and logout revokes them',async t=>{
+  const previous=process.env.DBATOOLS_SESSION_TTL_SECONDS;
+  t.after(()=>{if(previous===undefined)delete process.env.DBATOOLS_SESSION_TTL_SECONDS;else process.env.DBATOOLS_SESSION_TTL_SECONDS=previous;});
+  process.env.DBATOOLS_SESSION_TTL_SECONDS='86400';
+  const {call,rpc}=await fixture(t);
+  const before=Date.now();
+  const response=await call('/auth/login',{username:'HOST\\operator',password:'synthetic-test-password'});
+  assert.equal(response.status,200);
+  assert.equal(response.body.tokenType,'Bearer');
+  assert.ok(response.body.expiresAt>=before+86400000);
+  assert.ok(response.body.expiresAt<=Date.now()+86400000);
+  assert.equal((await rpc(response.body.token,'tools/list')).status,200);
+  assert.equal((await call('/auth/logout',undefined,{Authorization:`Bearer ${response.body.token}`})).status,204);
+  assert.equal((await rpc(response.body.token,'tools/list')).status,401);
+});
+
+test('HTTPS startup rejects invalid session TTL before listening', t=>{
+  const previous=process.env.DBATOOLS_SESSION_TTL_SECONDS;
+  t.after(()=>{if(previous===undefined)delete process.env.DBATOOLS_SESSION_TTL_SECONDS;else process.env.DBATOOLS_SESSION_TTL_SECONDS=previous;});
+  process.env.DBATOOLS_SESSION_TTL_SECONDS='86401';
+  assert.throws(()=>createHttpsService(config,{host:'127.0.0.1',port:0,allowedHosts:['127.0.0.1'],allowedOrigins:[],tls:{}}),/DBATOOLS_SESSION_TTL_SECONDS/);
+});

@@ -10,7 +10,7 @@
     {
       "id": "dbatools-session-token",
       "type": "promptString",
-      "description": "Session token from the protected login helper file (expires after one hour)",
+      "description": "Session token from the protected login helper file; check its expiry (server default 1 hour, configurable up to 24 hours; invalid after server restart)",
       "password": true
     }
   ]

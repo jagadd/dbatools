@@ -99,6 +99,7 @@ All settings are controlled via environment variables (set in `.vscode/mcp.json`
 | Variable | Default | Description |
 |---|---|---|
 | `PWSH_EXE` | `pwsh` | Path to PowerShell executable |
+| `DBATOOLS_SESSION_TTL_SECONDS` | `3600` | HTTPS bearer-session lifetime in whole seconds, `60` to `86400`. Set `86400` for a 24-hour POC session. Expiry is absolute; restarting MCP invalidates all tokens. STDIO does not use this setting. |
 | `DBATOOLS_SAFE_MODE` | `true` | When `true`, non-readonly commands require `confirm: true` |
 | `MAX_OUTPUT_ROWS` | `100` | Maximum rows returned per command execution |
 | `COMMAND_TIMEOUT_SECONDS` | `60` | Seconds before PowerShell process is killed |

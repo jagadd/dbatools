@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createServer } from '../dist/server-factory.js';
-import { SessionStore, AccessError } from '../dist/auth.js';
+import { SessionStore, AccessError, getSessionTtlMs } from '../dist/auth.js';
 import { validateCredentialInputs, redact } from '../dist/credentials.js';
 import { buildPowerShellScript } from '../dist/tool-registry.js';
 import { ExecutionLimiter } from '../dist/https-server.js';
@@ -42,6 +42,40 @@ test('sessions expire, revoke, and do not survive a new store', () => {
   const second=store.issue(principal).token;
   store.revoke(`Bearer ${second}`);
   assert.throws(()=>store.authenticate(`Bearer ${second}`),AccessError);
+});
+
+test('session TTL configuration accepts whole seconds within inclusive limits', t => {
+  const previous=process.env.DBATOOLS_SESSION_TTL_SECONDS;
+  t.after(()=>{if(previous===undefined)delete process.env.DBATOOLS_SESSION_TTL_SECONDS;else process.env.DBATOOLS_SESSION_TTL_SECONDS=previous;});
+  delete process.env.DBATOOLS_SESSION_TTL_SECONDS;
+  assert.equal(getSessionTtlMs(),3600000);
+  for(const seconds of ['60','3600','86400']) assert.equal(getSessionTtlMs(seconds),Number(seconds)*1000);
+  process.env.DBATOOLS_SESSION_TTL_SECONDS='86400';
+  assert.equal(getSessionTtlMs(),86400000);
+  for(const value of ['', ' ', ' 3600', '3600 ', '59', '86401', '-60', '60.5', '3600.0', '1e3', '0x100', 'Infinity', 'NaN', 'invalid']) {
+    assert.throws(()=>getSessionTtlMs(value),/DBATOOLS_SESSION_TTL_SECONDS.*60.*86400/);
+  }
+});
+
+test('default and 24-hour sessions expire absolutely, revoke, and invalidate on restart', () => {
+  for(const ttl of [3600000,getSessionTtlMs('86400')]) {
+    let now=1000;
+    const store=ttl===3600000 ? new SessionStore(()=>now) : new SessionStore(()=>now,ttl);
+    const issued=store.issue(principal);
+    assert.equal(issued.expiresAt,now+ttl);
+    now+=ttl-1;
+    assert.deepEqual(store.authenticate(`Bearer ${issued.token}`),principal);
+    assert.deepEqual(store.authenticate(`Bearer ${issued.token}`),principal);
+    now++;
+    assert.throws(()=>store.authenticate(`Bearer ${issued.token}`),e=>e.status===401);
+    const revoked=store.issue(principal).token;
+    store.revoke(`Bearer ${revoked}`);
+    assert.throws(()=>store.authenticate(`Bearer ${revoked}`),e=>e.status===401);
+    const current=store.issue(principal).token;
+    assert.throws(()=>new SessionStore(()=>now,ttl).authenticate(`Bearer ${current}`),e=>e.status===401);
+    store.clear();
+    assert.throws(()=>store.authenticate(`Bearer ${current}`),e=>e.status===401);
+  }
 });
 
 test('credential policy covers documented credentials, aliases, case and conflicts', () => {

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { z } from "zod";
-import { AccessError, LoginLimiter, SessionStore, windowsValidator, type WindowsValidator } from "./auth.js";
+import { AccessError, LoginLimiter, SessionStore, getSessionTtlMs, windowsValidator, type WindowsValidator } from "./auth.js";
 import { createServer, type ServerDependencies } from "./server-factory.js";
 import { runPowerShell } from "./powershell.js";
 import type { Executor, ServerConfig } from "./types.js";
@@ -52,7 +52,8 @@ export function createHttpsService(config: ServerConfig, options: HttpsOptions, 
   const app = express();
   app.disable("x-powered-by");
   app.set("trust proxy", false);
-  const sessions = overrides.sessions ?? new SessionStore();
+  const sessionTtl = getSessionTtlMs();
+  const sessions = overrides.sessions ?? new SessionStore(Date.now, sessionTtl);
   const validate = overrides.validate ?? windowsValidator(config);
   const loginLimiter = new LoginLimiter();
   const limiter = new ExecutionLimiter();

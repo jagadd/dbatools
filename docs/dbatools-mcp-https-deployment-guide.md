@@ -15,7 +15,10 @@ implementation.
 **Repository:** <https://github.com/jagadd/dbatools>  
 **Working branch:** `development`  
 **Application version observed:** `0.8.0`  
-**Implementation baseline for this guide:** `7c2b17d905c51bc18fc2e63b8603387167199515`
+**Recorded serialization validation baseline:** `7c2b17d905c51bc18fc2e63b8603387167199515`
+
+**Current session configuration:** configurable 60 to 86,400 seconds; default one hour,
+with the POC startup example opting into 24 hours.
 
 All changes are made and pushed to `development`. The owner creates the
 development-to-main pull request manually. The existing `AGENTS.md` contains
@@ -164,7 +167,11 @@ the MCP host computer name. Domain login and bare usernames are outside this POC
 Tokens are random, opaque, 43-character Base64URL values. The server stores token
 hashes and associated SID/roles in memory, not the plaintext tokens.
 
-- Lifetime: one hour from issue; no automatic refresh mechanism is implemented.
+- Lifetime: one hour from issue by default. Configure
+  `DBATOOLS_SESSION_TTL_SECONDS=86400` on the MCP host for a 24-hour POC session.
+  Accepted values are whole seconds from 60 through 86,400; invalid/empty values
+  fail HTTPS startup. Activity does not extend expiry, and no automatic refresh
+  mechanism is implemented.
 - Any MCP process restart invalidates all existing sessions immediately.
 - `POST /auth/logout` revokes the current token.
 - All MCP requests require `Authorization: Bearer <token>`.
@@ -336,6 +343,7 @@ Set-Location C:\Users\jaga_admin\dbatools
 $env:DBATOOLS_TRANSPORT = 'https'
 $env:DBATOOLS_HTTPS_HOST = '0.0.0.0'
 $env:DBATOOLS_HTTPS_PORT = '8443'
+$env:DBATOOLS_SESSION_TTL_SECONDS = '86400' # 24-hour POC; default is 3600
 $env:DBATOOLS_HTTPS_ALLOWED_HOSTS = '2276259-pyhome,10.10.0.5,localhost'
 $env:DBATOOLS_TLS_CERT_FILE = 'C:\McpConfig\server-cert.pem'
 $env:DBATOOLS_TLS_KEY_FILE = 'C:\McpConfig\server-key.pem'
@@ -406,6 +414,9 @@ Enter `2276259-pyhome\jaga_admin` and its Windows password (not a Windows Hello
 PIN, the remote machine's password, or the SQL login password). The helper saves
 the session token, server origin, and expiration in a protected JSON file. It
 does not save the Windows password.
+
+After enabling the 24-hour setting, restart MCP first and then obtain a fresh
+token. Existing tokens cannot be extended, and restart invalidation still applies.
 
 For this origin and account, the observed file is:
 
@@ -788,6 +799,21 @@ must also be supplied through a controlled startup configuration or environment.
 A service/task would need its execution account, environment, user-profile and
 DPAPI requirements configured explicitly.
 
+Persist the POC token lifetime for new processes under the same account:
+
+```powershell
+[Environment]::SetEnvironmentVariable(
+    'DBATOOLS_SESSION_TTL_SECONDS', '86400', 'User'
+)
+# Also set it in an already-open server terminal before restarting MCP:
+$env:DBATOOLS_SESSION_TTL_SECONDS = '86400'
+```
+
+This is a 24-hour absolute lifetime from each new login, not a sliding timeout.
+The setting is read at HTTPS startup. Restart MCP, log in again, replace the
+application token, and restart/reload the backend to pick up its updated secret.
+Changing the lifetime does not make tokens survive a server restart.
+
 ## Safe update sequence
 
 1. Stop MCP with Ctrl+C in the configured server terminal.
@@ -953,6 +979,11 @@ enforcement, persistent queue/recovery, and repeated persistent DataRow conversi
 It uses synthetic data and disposable accounts, not the deployed SQL instances.
 
 CI evidence: <https://github.com/jagadd/dbatools/actions/runs/40857215367>
+
+The subsequent configurable-session change expands the automated suite to 22
+tests, including simulated default/24-hour expiration boundaries, revocation,
+restart invalidation, configuration validation, and real HTTPS login expiry.
+The serialization baseline above is retained as historical evidence.
 
 Live POC evidence is the user's Windows/Linux/Inspector results described above.
 The final remote query without projection returned only TotalMemoryKB and

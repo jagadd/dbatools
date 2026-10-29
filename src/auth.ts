@@ -7,6 +7,17 @@ export class AccessError extends Error {
 }
 
 type Session = { principal: Principal; expiresAt: number };
+
+/** HTTPS startup configuration; expiry remains absolute from login time. */
+export function getSessionTtlMs(value = process.env.DBATOOLS_SESSION_TTL_SECONDS): number {
+  if (value === undefined) return 3_600_000;
+  const seconds = Number(value);
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(seconds) || seconds < 60 || seconds > 86400) {
+    throw new Error("DBATOOLS_SESSION_TTL_SECONDS must be a whole number from 60 to 86400 seconds (default 3600; use 86400 for 24 hours)");
+  }
+  return seconds * 1000;
+}
+
 export class SessionStore {
   private sessions = new Map<string, Session>();
   constructor(private readonly now: () => number = Date.now, private readonly ttl = 3_600_000) {}

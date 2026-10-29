@@ -13,6 +13,7 @@
 - `src/server-factory.ts` owns the four tools and help resources. `src/tool-registry.ts` builds command scripts; values/credentials travel separately on stdin.
 - `scripts/run-command.ps1` is the shared one-shot/persistent driver. `scripts/serialize-output.ps1` converts output into bounded plain JSON before serialization.
 - DPAPI profiles hold command credentials on the Windows host; MCP login tokens and command credentials are distinct.
+- HTTPS session lifetime is configured at startup by DBATOOLS_SESSION_TTL_SECONDS (60–86400 whole seconds, default 3600). The POC opts into 86400. Expiration is absolute and all tokens still invalidate on MCP restart.
 
 ## Output handling and regression checks
 

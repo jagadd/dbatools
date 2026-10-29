@@ -58,6 +58,7 @@ In the execution account's terminal:
 $env:DBATOOLS_TRANSPORT = "https"
 $env:DBATOOLS_HTTPS_HOST = "0.0.0.0"
 $env:DBATOOLS_HTTPS_PORT = "8443"
+$env:DBATOOLS_SESSION_TTL_SECONDS = "86400" # POC: 24 hours; omitted default is 3600
 $env:DBATOOLS_HTTPS_ALLOWED_HOSTS = "mcp.example.internal"
 $env:DBATOOLS_TLS_CERT_FILE = "C:\McpConfig\server-chain.pem"
 $env:DBATOOLS_TLS_KEY_FILE = "C:\McpConfig\server-key.pem"
@@ -96,12 +97,34 @@ For a lab CA, configure that client's trusted CA too; Node clients can use
 `NODE_EXTRA_CA_CERTS`. Never disable TLS verification. Do not paste passwords or
 tokens into an AI conversation, commit them, or put them in an MCP tool call.
 
-Sessions last one hour. Run login again and update the client secret after
-expiration or server restart. `POST /auth/logout` with the Authorization header
+Sessions default to one hour. Set `DBATOOLS_SESSION_TTL_SECONDS` on the MCP host
+before starting HTTPS to choose a whole number of seconds from `60` through
+`86400` (24 hours). Invalid or empty values fail startup with a configuration
+error. The POC example above opts into 24 hours; the default remains `3600`.
+Expiration is absolute from login, not extended by activity. The login helper's
+printed expiry and protected session file contain the actual expiration time.
+
+Run login again and update the client secret after expiration or server restart.
+`POST /auth/logout` with the Authorization header
 revokes that token. Sessions are memory-only, with only token hashes stored on
 the server. Group changes take effect at the next login (or invalidate all
 sessions by restarting the service). Login is limited to five attempts per
 source address per 15 minutes; normal Windows account-lockout policy also applies.
+
+To deploy a 24-hour session lifetime, stop MCP, pull/build the updated code, set
+`$env:DBATOOLS_SESSION_TTL_SECONDS = "86400"`, and restart in the configured server
+terminal. Log in again, replace Inspector/application tokens, and restart or reload
+the app backend so it reads the new secret. This does not extend existing tokens;
+every MCP restart still invalidates all sessions immediately. To persist the
+setting for new processes under the same Windows account, run:
+
+```powershell
+[Environment]::SetEnvironmentVariable("DBATOOLS_SESSION_TTL_SECONDS", "86400", "User")
+```
+
+The user setting affects new processes; use `$env:` as well for the current terminal.
+Do not restart MCP after obtaining the replacement token. No automatic renewal or
+on-disk server session persistence is introduced.
 
 This is custom POC session authentication, not an OAuth provider. It requires an
 MCP client that accepts a custom Authorization header; it does not implement
