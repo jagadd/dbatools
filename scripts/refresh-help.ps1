@@ -142,9 +142,9 @@ if ($helpLookup.Count -gt 0) {
                         } else { '' }
 
                         $aliasStr = if ($p.aliases) { [string]$p.aliases } else { '' }
-                        $aliasArr = if ($aliasStr.Trim() -ne '' -and $aliasStr -ne 'None') {
+                        $aliasArr = @(if ($aliasStr.Trim() -ne '' -and $aliasStr -ne 'None') {
                             @($aliasStr -split ',\s*' | Where-Object { $_ -ne '' })
-                        } else { @() }
+                        } else { @() })
 
                         [ordered]@{
                             name          = [string]$p.name
@@ -246,9 +246,9 @@ if ($helpLookup.Count -gt 0) {
                             required     = ($p.required -eq 'true')
                             pipelineInput = ($p.pipelineInput -and $p.pipelineInput -ne 'false')
                             defaultValue = if ($p.defaultValue) { $p.defaultValue } else { $null }
-                            aliases      = if ($p.aliases -and $p.aliases -ne 'None') {
+                            aliases      = @(if ($p.aliases -and $p.aliases -ne 'None') {
                                 @($p.aliases -split ',\s*')
-                            } else { @() }
+                            } else { @() })
                         }
                     })
                 }
@@ -342,9 +342,9 @@ if ($helpLookup.Count -gt 0) {
                             ($p.description | ForEach-Object { $_.Text }) -join ' '
                         } else { '' }
 
-                        $aliasArr = if ($p.aliases -and $p.aliases -ne 'None') {
+                        $aliasArr = @(if ($p.aliases -and $p.aliases -ne 'None') {
                             @($p.aliases -split ',\s*' | Where-Object { $_ -ne '' })
-                        } else { @() }
+                        } else { @() })
 
                         $params.Add([ordered]@{
                             name          = [string]$p.name

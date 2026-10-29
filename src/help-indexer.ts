@@ -8,6 +8,22 @@ const HELP_INDEX_PATH = process.env.DBATOOLS_HELP_INDEX ?? join(__dirname, "../g
 
 let cachedManifest: HelpManifest | null = null;
 
+/** PowerShell pipelines can serialize empty aliases as null and single aliases as strings. */
+export function parseHelpManifest(raw: string): HelpManifest {
+  const manifest = JSON.parse(raw) as HelpManifest;
+  for (const command of Object.values(manifest.commands)) {
+    for (const parameter of command.parameters) {
+      const aliases: unknown = parameter.aliases;
+      if (aliases == null) parameter.aliases = [];
+      else if (typeof aliases === "string") parameter.aliases = aliases === "None" ? [] : [aliases];
+      else if (!Array.isArray(aliases) || aliases.some(alias => typeof alias !== "string")) {
+        throw new Error(`Invalid help index aliases for ${command.name}.${parameter.name}; run 'npm run refresh-help'`);
+      }
+    }
+  }
+  return manifest;
+}
+
 /**
  * Load and cache the help manifest from generated/dbatools-help.json.
  * Throws an actionable error if the file has not been generated yet.
@@ -23,7 +39,7 @@ export function loadHelpManifest(): HelpManifest {
   }
 
   const raw = readFileSync(HELP_INDEX_PATH, "utf-8");
-  cachedManifest = JSON.parse(raw) as HelpManifest;
+  cachedManifest = parseHelpManifest(raw);
   return cachedManifest;
 }
 

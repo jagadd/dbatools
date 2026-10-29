@@ -8,8 +8,28 @@ import { validateCredentialInputs, redact } from '../dist/credentials.js';
 import { buildPowerShellScript } from '../dist/tool-registry.js';
 import { ExecutionLimiter } from '../dist/https-server.js';
 import { powerShellEnvironment } from '../dist/child-process.js';
+import { parseHelpManifest } from '../dist/help-indexer.js';
 
 import { help, manifest, config, principal } from './fixtures.mjs';
+
+test('PowerShell null, missing and scalar aliases normalize without bypassing credential policy', () => {
+  for (const aliases of [null, undefined, [], 'LoginCredential', ['LoginCredential']]) {
+    const input = structuredClone(manifest);
+    const command = input.commands[help.name];
+    for (const parameter of command.parameters) parameter.aliases = null;
+    command.parameters.find(p => p.name === 'SqlCredential').aliases = aliases;
+    const parsed = parseHelpManifest(JSON.stringify(input)).commands[help.name];
+    assert.doesNotThrow(() => validateCredentialInputs(parsed, {SqlInstance: 'localhost'}, {}, true));
+    assert.throws(() => validateCredentialInputs(parsed, {SqlCredential: {}}, {}, true), /credentialRefs/);
+    if (aliases === 'LoginCredential' || Array.isArray(aliases) && aliases.length) {
+      assert.throws(() => validateCredentialInputs(parsed, {LoginCredential: {}}, {}, true), /credentialRefs/);
+    }
+    assert.ok(parsed.parameters.every(p => Array.isArray(p.aliases)));
+  }
+  const invalid = structuredClone(manifest);
+  invalid.commands[help.name].parameters[0].aliases = [42];
+  assert.throws(() => parseHelpManifest(JSON.stringify(invalid)), /Invalid help index aliases/);
+});
 
 test('sessions expire, revoke, and do not survive a new store', () => {
   let now=1000;
